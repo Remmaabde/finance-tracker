@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  EMPLOYEE
+  PERSONAL
+}
+
+enum SubscriptionStatus {
+  FREE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  image         String?
+  locale        String    @default("en")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships   OrganizationMember[]
+  expenses      Expense[]
+  accounts      Account[]
+}
+
+model Organization {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  members     OrganizationMember[]
+  expenses    Expense[]
+  subscription Subscription?
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  role           Role         @default(EMPLOYEE)
+  userId         String
+  organizationId String
+  createdAt      DateTime     @default(now())
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organizationId       String             @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               SubscriptionStatus @default(FREE)
+  plan                 String             @default("free")
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  currency  String   @default("ETB")
+  balance   Decimal  @default(0) @db.Decimal(15, 2)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses  Expense[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  nameAm    String?
+  icon      String?
+  color     String?
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  expenses  Expense[]
+}
+
+model Expense {
+  id             String        @id @default(cuid())
+  title          String
+  amount         Decimal       @db.Decimal(15, 2)
+  currency       String        @default("ETB")
+  date           DateTime
+  notes          String?
+  status         ExpenseStatus @default(DRAFT)
+  rating         Int?
+  receiptUrl     String?
+
+  userId         String
+  organizationId String?
+  accountId      String?
+  categoryId     String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  account        Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category       Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
